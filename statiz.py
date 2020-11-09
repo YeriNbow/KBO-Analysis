@@ -73,21 +73,23 @@ class StatizCrawler:
             tr['team'] = team
             tr['position'] = position
 
-            self.statiz_df = self.statiz_df.append(tr, ignore_index=True).dropna(axis=1)
+            self.statiz_df = self.statiz_df.append(tr, ignore_index=True).dropna(axis=1, inplace=True)
 
         driver.quit()
 
-        self.statiz_df = self.statiz_df.drop([0, 53], axis=1, inplace=True)
-        self.set_columns()
-
         return self.statiz_df
 
-    def set_columns(self):
-        if self.pos == 'B':
-            self.statiz_df.columns = ['Name', 'Birth', 'Team', 'Position', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B', '3B',
-                                      'HR', 'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF']
-        else:
-            self.statiz_df.columns = ['']
+
+def set_columns(df, pos):
+    if pos == 'B':
+        df.drop([0, 53], axis=1, inplace=True)
+        df.columns = ['Name', 'Birth', 'Team', 'Position', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B', '3B',
+                      'HR', 'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF']
+    else:
+        df.columns = ['Name', 'Birth', 'Team', 'Position', 'WAR', 'G', 'CG', 'SHO', 'GS', 'W', 'L', 'SV',
+                      'HLD', 'IP', 'R', 'ER', '상대타자', 'H', '2B', '3B', 'HR', 'BB', 'IBB', 'K', 'BK', 'WP']
+
+    return df
 
 
 if __name__ == '__main__':
@@ -97,9 +99,9 @@ if __name__ == '__main__':
     for year in range(1982, 2021):
         sc = StatizCrawler(year, pos='B')
         print('Now Scraping : {}'.format(year))
-        baseball.append(sc.crawl(), ignore_index=True)
+        baseball = baseball.append(sc.crawl(), ignore_index=True)
 
-    # baseball.drop([0, 53], axis=1, inplace=True)
+    baseball = set_columns(baseball, pos='B')
 
     print(baseball)
     baseball.to_excel(file_path, encoding='utf-8', index=False)
