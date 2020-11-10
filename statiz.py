@@ -16,29 +16,18 @@ class StatizCrawler:
 
     U = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=0&ys='
     R = '&ye='
-    L = '&se=0&te=&tm=&ty=0&qu=auto&po=0&as=&ae=&hi=&un=&pl=&da=1&o1='
-    Batter = 'WAR_ALL_ADJ&de=1&lr=0&tr=&cv=&ml=1&sn=1000&si=&cn=500'
-    Pitcher = 'WAR&o2=OutCount&de=1&lr=0&tr=&cv=&ml=1&sn=30&si=&cn=500'
+    L = '&se=0&te=&tm=&ty=0&qu=auto&po=0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR_ALL_ADJ' \
+        '&de=1&lr=0&tr=&cv=&ml=1&sn=1000&si=&cn=500'
 
     XPATH = '//*[@id="mytable"]/tbody'
 
-    def __init__(self, year, pos='B'):
-        """
-        :param year: This parameter determines a year to crawl. (1982 ~ present)
-        :param pos: This parameter determines crawling data type. ('B' : Batter, 'P' : Pitcher)
-        """
-        self.pos = pos
-
+    def __init__(self, year):
         self.birth_regex = re.compile(r'\d{4}-\d{2}-\d{2}')
         self.name_regex = re.compile(r'\d+(.*\d{2})?')
         self.position_regex = re.compile(r'(1B|2B|3B|SS|C|LF|RF|CF|DH|P)$')
 
         self.statiz_df = pd.DataFrame(columns=['name', 'birth', 'team', 'position'])
-
-        if pos == 'B':
-            self.base_url = self.U + str(year) + self.R + str(year) + self.L + self.Batter
-        else:
-            self.base_url = self.U + str(year) + self.R + str(year) + self.L + self.Pitcher
+        self.base_url = self.U + str(year) + self.R + str(year) + self.L
 
     def crawl(self):
         driver = webdriver.Chrome(self.WD_PATH, options=self.OPTIONS)
@@ -73,21 +62,17 @@ class StatizCrawler:
             tr['team'] = team
             tr['position'] = position
 
-            self.statiz_df = self.statiz_df.append(tr, ignore_index=True).dropna(axis=1, inplace=True)
+            self.statiz_df = self.statiz_df.append(tr, ignore_index=True)
 
         driver.quit()
 
-        return self.statiz_df
+        return self.statiz_df.dropna(axis=1)
 
 
-def set_columns(df, pos):
-    if pos == 'B':
-        df.drop([0, 53], axis=1, inplace=True)
-        df.columns = ['Name', 'Birth', 'Team', 'Position', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B', '3B',
-                      'HR', 'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF']
-    else:
-        df.columns = ['Name', 'Birth', 'Team', 'Position', 'WAR', 'G', 'CG', 'SHO', 'GS', 'W', 'L', 'SV',
-                      'HLD', 'IP', 'R', 'ER', '상대타자', 'H', '2B', '3B', 'HR', 'BB', 'IBB', 'K', 'BK', 'WP']
+def set_columns(df):
+    df.dropna(axis=1, inplace=True).drop([0, 53], axis=1, inplace=True)
+    df.columns = ['Name', 'Birth', 'Team', 'Position', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B', '3B',
+                  'HR', 'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF']
 
     return df
 
@@ -97,11 +82,11 @@ if __name__ == '__main__':
     baseball = pd.DataFrame()
 
     for year in range(1982, 2021):
-        sc = StatizCrawler(year, pos='B')
+        sc = StatizCrawler(year)
         print('Now Scraping : {}'.format(year))
         baseball = baseball.append(sc.crawl(), ignore_index=True)
 
-    baseball = set_columns(baseball, pos='B')
+    baseball = set_columns(baseball)
 
     print(baseball)
     baseball.to_excel(file_path, encoding='utf-8', index=False)
