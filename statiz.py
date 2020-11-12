@@ -6,7 +6,8 @@ import utils
 
 
 class StatizCrawler:
-    WD_PATH = 'D:/IT/mywork/chromedriver.exe'
+    WEBDRIVER_PATH = 'D:/IT/mywork/chromedriver.exe'
+    XPATH = '//*[@id="mytable"]/tbody'
 
     OPTIONS = webdriver.ChromeOptions()
     OPTIONS.add_argument('--headless')
@@ -19,8 +20,6 @@ class StatizCrawler:
     L = '&se=0&te=&tm=&ty=0&qu=auto&po=0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR_ALL_ADJ' \
         '&de=1&lr=0&tr=&cv=&ml=1&sn=1000&si=&cn=500'
 
-    XPATH = '//*[@id="mytable"]/tbody'
-
     def __init__(self, year):
         self.birth_regex = re.compile(r'\d{4}-\d{2}-\d{2}')
         self.name_regex = re.compile(r'\d+(.*\d{2})?')
@@ -30,7 +29,7 @@ class StatizCrawler:
         self.base_url = self.U + str(year) + self.R + str(year) + self.L
 
     def crawl(self):
-        driver = webdriver.Chrome(self.WD_PATH, options=self.OPTIONS)
+        driver = webdriver.Chrome(self.WEBDRIVER_PATH, options=self.OPTIONS)
         driver.get(self.base_url)
         driver.implicitly_wait(5)
 
@@ -70,7 +69,7 @@ class StatizCrawler:
 
 
 def set_columns(df):
-    df.dropna(axis=1, inplace=True).drop([0, 53], axis=1, inplace=True)
+    df = df.dropna(axis=1).drop([0, 53], axis=1)
     df.columns = ['Name', 'Birth', 'Team', 'Position', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B', '3B',
                   'HR', 'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF']
 
@@ -87,6 +86,6 @@ if __name__ == '__main__':
         baseball = baseball.append(sc.crawl(), ignore_index=True)
 
     baseball = set_columns(baseball)
-
-    print(baseball)
+    print(baseball.head())
+    print(baseball.tail())
     baseball.to_excel(file_path, encoding='utf-8', index=False)
