@@ -29,6 +29,11 @@ class StatizCrawler:
         self.base_url = self.U + str(year) + self.R + str(year) + self.L
 
     def crawl(self):
+        """
+        Crawl KBO Batter records from the Statiz website. (http://www.statiz.co.kr)
+            :return: None
+        """
+
         driver = webdriver.Chrome(self.WEBDRIVER_PATH, options=self.OPTIONS)
         driver.get(self.base_url)
         driver.implicitly_wait(5)
@@ -69,6 +74,12 @@ class StatizCrawler:
 
 
 def set_columns(df):
+    """
+    Rename column names and remove unnecessary columns.
+        :param df: A DataFrame
+        :return: A DataFrame that columns changed
+    """
+
     df = df.dropna(axis=1).drop([0, 53], axis=1)
     df.columns = ['Name', 'Birth', 'Team', 'Position', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B', '3B',
                   'HR', 'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF']
