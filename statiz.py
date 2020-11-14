@@ -131,8 +131,8 @@ def find_renamed_player():
 
 
 if __name__ == '__main__':
-    file_path1 = r'D:\IT\mywork\Project\KBO-Analysis\kbo_batter.xlsx'
-    file_path2 = r'D:\IT\mywork\Project\KBO-Analysis\rename.xlsx'
+    file_path1 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\kbo_batter.xlsx'
+    file_path2 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\rename.xlsx'
 
     baseball = pd.DataFrame()
 
