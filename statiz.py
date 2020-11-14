@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 import pandas as pd
 import utils
+import requests
 
 
 class StatizCrawler:
@@ -25,24 +26,27 @@ class StatizCrawler:
         self.name_regex = re.compile(r'\d+(.*\d{2})?')
         self.position_regex = re.compile(r'(1B|2B|3B|SS|C|LF|RF|CF|DH|P)$')
 
-        self.statiz_df = pd.DataFrame(columns=['name', 'birth', 'team', 'position'])
-        self.base_url = self.U + str(year) + self.R + str(year) + self.L
+        self.record_df = pd.DataFrame(columns=['name', 'birth', 'team', 'position'])
+
+        self.url = self.U + str(year) + self.R + str(year) + self.L
 
     def crawl(self):
         """
         Crawl KBO Batter records from the Statiz website. (http://www.statiz.co.kr)
-            :return: None
+            :return: A DataFrame with crawled records
         """
 
         driver = webdriver.Chrome(self.WEBDRIVER_PATH, options=self.OPTIONS)
-        driver.get(self.base_url)
+        driver.get(self.url)
         driver.implicitly_wait(5)
 
         html = driver.find_element_by_xpath(self.XPATH).get_attribute("innerHTML")
-        page = BeautifulSoup(html, 'html.parser')
+        page = BeautifulSoup(html, 'lxml.parser')
         trs = page.findAll('tr')
 
         count = 1
+        print('Now Crawling : {}'.format(year))
+
         for tr in trs:
             utils.progress_bar(count, len(trs))
             count += 1
@@ -66,11 +70,11 @@ class StatizCrawler:
             tr['team'] = team
             tr['position'] = position
 
-            self.statiz_df = self.statiz_df.append(tr, ignore_index=True)
+            self.record_df = self.record_df.append(tr, ignore_index=True)
 
         driver.quit()
 
-        return self.statiz_df.dropna(axis=1)
+        return self.record_df.dropna(axis=1)
 
 
 def set_columns(df):
@@ -87,16 +91,61 @@ def set_columns(df):
     return df
 
 
+def find_renamed_player():
+    """
+    Find batters who change their name.
+        :return: A DataFrame that renamed player lists
+    """
+
+    rename_df = pd.DataFrame()
+    url = 'http://www.statiz.co.kr/rename.php'
+
+    html = requests.get(url)
+    page = BeautifulSoup(html.text, 'lxml.parser')
+    trs = page.findAll('tr')
+
+    count = 1
+    print('Now Crawling : Renamed Player')
+
+    for tr in trs:
+        utils.progress_bar(count, len(trs))
+        count += 1
+        tmp = []
+
+        tds = tr.findAll('td')
+
+        if len(tds) == 1:
+            continue
+
+        for td in tds:
+            td = td.text
+            tmp.append(td)
+
+        rename_df = rename_df.append(pd.Series(tmp), ignore_index=True)
+
+    rename_df.columns = rename_df.iloc[0]
+    rename_df.drop(0, inplace=True)
+    rename_df.reset_index(drop=True, inplace=True)
+
+    return rename_df
+
+
 if __name__ == '__main__':
-    file_path = 'D:/IT/mywork/kbo_batter.xlsx'
+    file_path1 = r'D:\IT\mywork\Project\KBO-Analysis\kbo_batter.xlsx'
+    file_path2 = r'D:\IT\mywork\Project\KBO-Analysis\rename.xlsx'
+
     baseball = pd.DataFrame()
 
     for year in range(1982, 2021):
         sc = StatizCrawler(year)
-        print('Now Scraping : {}'.format(year))
         baseball = baseball.append(sc.crawl(), ignore_index=True)
 
     baseball = set_columns(baseball)
+    rename = find_renamed_player()
+
     print(baseball.head())
     print(baseball.tail())
-    baseball.to_excel(file_path, encoding='utf-8', index=False)
+    print(rename)
+
+    baseball.to_excel(file_path1, encoding='utf-8', index=False)
+    rename.to_excel(file_path2, encoding='utf-8', index=False)
