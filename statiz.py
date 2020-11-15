@@ -26,7 +26,7 @@ class StatizCrawler:
         self.name_regex = re.compile(r'\d+(.*\d{2})?')
         self.position_regex = re.compile(r'(1B|2B|3B|SS|C|LF|RF|CF|DH|P)$')
 
-        self.record_df = pd.DataFrame(columns=['name', 'birth', 'team', 'position'])
+        self.record_df = pd.DataFrame(columns=['name', 'season', 'birth', 'team', 'position'])
 
         self.url = self.U + str(year) + self.R + str(year) + self.L
 
@@ -41,7 +41,7 @@ class StatizCrawler:
         driver.implicitly_wait(5)
 
         html = driver.find_element_by_xpath(self.XPATH).get_attribute("innerHTML")
-        page = BeautifulSoup(html, 'lxml.parser')
+        page = BeautifulSoup(html, 'lxml')
         trs = page.findAll('tr')
 
         count = 1
@@ -65,7 +65,8 @@ class StatizCrawler:
             team = ''.join(team_regex.findall(tr[0]))
 
             tr = tr.replace('', pd.NA)
-            tr['name'] = name
+            tr['name'] = name[:-2]
+            tr['season'] = name[-2:]
             tr['birth'] = birth
             tr['team'] = team
             tr['position'] = position
@@ -85,8 +86,8 @@ def set_columns(df):
     """
 
     df = df.dropna(axis=1).drop([0, 53], axis=1)
-    df.columns = ['Name', 'Birth', 'Team', 'Position', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B', '3B',
-                  'HR', 'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF']
+    df.columns = ['Name', 'Season', 'Birth', 'Team', 'Position', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B',
+                  '3B', 'HR', 'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF']
 
     return df
 
@@ -99,9 +100,10 @@ def find_renamed_player():
 
     rename_df = pd.DataFrame()
     url = 'http://www.statiz.co.kr/rename.php'
+    regex = re.compile(r'\d{4}-\d{2}-\d{2}')
 
     html = requests.get(url)
-    page = BeautifulSoup(html.text, 'lxml.parser')
+    page = BeautifulSoup(html.text, 'lxml')
     trs = page.findAll('tr')
 
     count = 1
@@ -118,14 +120,24 @@ def find_renamed_player():
             continue
 
         for td in tds:
-            td = td.text
-            tmp.append(td)
+            tmp.append(td.text)
+
+            if td.find('a'):
+                birth = ''.join(regex.findall(td.find('a')['href']))
+                tmp.append(birth)
 
         rename_df = rename_df.append(pd.Series(tmp), ignore_index=True)
 
-    rename_df.columns = rename_df.iloc[0]
+    rename_df.columns = ['Year', 'Before', 'After', 'Birth', 'Team']
     rename_df.drop(0, inplace=True)
     rename_df.reset_index(drop=True, inplace=True)
+
+    for idx in rename_df.index:
+        team = rename_df.loc[idx, 'Team']
+        if team == 'KIA':
+            team = '기아'
+
+        rename_df.loc[idx, 'Team'] = team[:1]
 
     return rename_df
 
