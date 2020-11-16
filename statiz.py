@@ -16,20 +16,22 @@ class StatizCrawler:
             Methods
                 crawl_records(year=) : Return crawled KBO Batter records
 
-                crawl_rename( ) : Return crawled rename player list
+                crawl_rename( ) : Returns a list of renamed player
 
     """
 
-    OPTIONS = webdriver.ChromeOptions()
-    OPTIONS.add_argument('--headless')
-    OPTIONS.add_argument('--no-sandbox')
-    OPTIONS.add_argument('--disable-dev-shm-usage')
-    OPTIONS.add_argument('disable-gpu')
-
     def __init__(self, driver_path):
+        # regex
         self.birth_regex = re.compile(r'\d{4}-\d{2}-\d{2}')
         self.name_regex = re.compile(r'\d+(.*\d{2})?')
         self.position_regex = re.compile(r'(1B|2B|3B|SS|C|LF|RF|CF|DH|P)$')
+
+        # driver settings
+        self.OPTIONS = webdriver.ChromeOptions()
+        self.OPTIONS.add_argument('--headless')
+        self.OPTIONS.add_argument('--no-sandbox')
+        self.OPTIONS.add_argument('--disable-dev-shm-usage')
+        self.OPTIONS.add_argument('disable-gpu')
 
         self.driver = webdriver.Chrome(driver_path, options=self.OPTIONS)
 
