@@ -7,8 +7,18 @@ import requests
 
 
 class StatizCrawler:
-    # WEBDRIVER_PATH = 'D:/IT/mywork/chromedriver.exe'
-    # XPATH = '//*[@id="mytable"]/tbody'
+    """
+        A class to crawl Statiz website. (http://www.statiz.co.kr)
+
+            Parameter
+                driver_path : (str) Chrome driver path
+
+            Methods
+                crawl_records(year=) : Return crawled KBO Batter records
+
+                crawl_rename( ) : Return crawled rename player list
+
+    """
 
     OPTIONS = webdriver.ChromeOptions()
     OPTIONS.add_argument('--headless')
@@ -16,43 +26,30 @@ class StatizCrawler:
     OPTIONS.add_argument('--disable-dev-shm-usage')
     OPTIONS.add_argument('disable-gpu')
 
-    U = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=0&ys='
-    R = '&ye='
-    L = '&se=0&te=&tm=&ty=0&qu=auto&po=0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR_ALL_ADJ' \
-        '&de=1&lr=0&tr=&cv=&ml=1&sn=1000&si=&cn=500'
-
     def __init__(self, driver_path):
-        """
-        Creates new instance of the Statiz website crawler. (http://www.statiz.co.kr)
-
-            :param driver_path: Chrome driver path
-        """
-
         self.birth_regex = re.compile(r'\d{4}-\d{2}-\d{2}')
         self.name_regex = re.compile(r'\d+(.*\d{2})?')
         self.position_regex = re.compile(r'(1B|2B|3B|SS|C|LF|RF|CF|DH|P)$')
 
         self.driver = webdriver.Chrome(driver_path, options=self.OPTIONS)
-        # self.record_df = pd.DataFrame(columns=['name', 'season', 'birth', 'team', 'position'])
 
-        # self.url = self.U + str(year) + self.R + str(year) + self.L
+    def __del__(self):
+        self.driver.quit()
 
     def crawl_records(self, year=1982):
         """
-        Crawl KBO Batter records of the given year.
-        If 'year' parameter were not given, it would crawl the 1982's record. (KBO launch year)
+            Crawl KBO Batter records of the given year.
+            If 'year' parameter were not given, it would crawl the 1982's record. (KBO launch year)
 
-            :param year: (int) A year to crawl
-            :return: (DataFrame) A DataFrame with crawled records
+                :param year: (int) A year to crawl
+                :return: (DataFrame) A DataFrame with crawled records
         """
 
+        record_df = pd.DataFrame(columns=['name', 'season', 'birth', 'team', 'position'])
         url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=0&ys={0}&ye={0}&se=0&te=&tm=&ty=0&qu=auto&po=' \
               '0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR_ALL_ADJ&de=1&lr=0&tr=&cv=&ml=1&sn=1000&si=&cn=500'.format(year)
-        url = self.U + str(year) + self.R + str(year) + self.L
         xpath = '//*[@id="mytable"]/tbody'
-        record_df = pd.DataFrame(columns=['name', 'season', 'birth', 'team', 'position'])
 
-        # driver = webdriver.Chrome(self.WEBDRIVER_PATH, options=self.OPTIONS)
         self.driver.get(url)
         self.driver.implicitly_wait(5)
 
@@ -67,20 +64,24 @@ class StatizCrawler:
             utils.progress_bar(count, len(trs))
             count += 1
 
-            tmp = tr
-            tr = pd.Series(tr.text.strip().replace('\n', '').split(' '))
+            birth = ''.join(self.birth_regex.findall(tr.find('a')['href']))
+            tr = tr.text.strip().replace('\n', '')
 
-            if len(tr) == 1:
+            if tr[:3] in ['순이름', 'WAR']:
                 continue
 
-            birth = ''.join(self.birth_regex.findall(tmp.find('a')['href']))
+            tr = pd.Series(tr.split(' ')).replace('', pd.NA)
+
             name = ''.join(self.name_regex.findall(tr[0]))
             position = ''.join(self.position_regex.findall(tr[0]))
 
             team_regex = re.compile(name + '(.*)?' + position)
             team = ''.join(team_regex.findall(tr[0]))
 
-            tr = tr.replace('', pd.NA)
+            for i in list(range(1, 54, 2)):
+                if tr[i] is pd.NA:
+                    tr[i] = 0
+
             tr['name'] = name[:-2]
             tr['season'] = name[-2:]
             tr['birth'] = birth
@@ -89,20 +90,25 @@ class StatizCrawler:
 
             record_df = record_df.append(tr, ignore_index=True)
 
-        self.driver.close()
+        if year < 2014:
+            record_df = record_df.dropna(axis=1).drop([0, 53], axis=1)
+        else:
+            record_df = record_df.dropna(axis=1).drop([0, 53, 55], axis=1)  # Statiz record includes WPA after 2014
 
-        return record_df.dropna(axis=1)
+        record_df.columns = ['Name', 'Season', 'Birth', 'Team', 'Position', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B',
+                             '3B', 'HR', 'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF', 'AVG',
+                             'OBP', 'SLG', 'OPS', 'wOBA', 'WRC+']
+        return record_df
 
     def crawl_rename(self):
         """
-        Crawl the player list that change their name.
+            Crawl the player list that change their name.
 
-            :return: (DataFrame) A DataFrame with renamed player list
+                :return: (DataFrame) A DataFrame with renamed player list
         """
 
         rename_df = pd.DataFrame()
         url = 'http://www.statiz.co.kr/rename.php'
-        # regex = re.compile(r'\d{4}-\d{2}-\d{2}')
 
         html = requests.get(url)
         page = BeautifulSoup(html.text, 'lxml')
@@ -144,41 +150,24 @@ class StatizCrawler:
         return rename_df
 
 
-# remove?
-def set_columns(df):
-    """
-    Rename column names and remove unnecessary columns.
-        :param df: A DataFrame
-        :return: A DataFrame that columns changed
-    """
-
-    df = df.dropna(axis=1).drop([0, 53], axis=1)
-    df.columns = ['Name', 'Season', 'Birth', 'Team', 'Position', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B',
-                  '3B', 'HR', 'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF']
-
-    return df
-
-
 if __name__ == '__main__':
     FILE_PATH1 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\kbo_batter.xlsx'
     FILE_PATH2 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\rename.xlsx'
     DRIVER_PATH = r'D:\IT\mywork\chromedriver.exe'
 
     records = pd.DataFrame()
-
     sc = StatizCrawler(DRIVER_PATH)
+
     for year in range(1982, 2021):
         records = records.append(sc.crawl_records(year), ignore_index=True)
 
-    # baseball = set_columns(baseball)
-    records = records.dropna(axis=1).drop([0, 53], axis=1)
-    records.columns = ['Name', 'Season', 'Birth', 'Team', 'Position', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B',
-                       '3B', 'HR', 'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF']
-
     rename = sc.crawl_rename()
+
     print(records.head())
     print(records.tail())
     print(rename)
+
+    del sc
 
     records.to_excel(FILE_PATH1, encoding='utf-8', index=False)
     rename.to_excel(FILE_PATH2, encoding='utf-8', index=False)
