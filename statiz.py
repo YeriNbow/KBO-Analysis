@@ -11,12 +11,12 @@ class StatizCrawler:
         A class to crawl Statiz website. (http://www.statiz.co.kr)
 
             Parameter
-                driver_path : (str) Chrome driver path
+                driver_path : (str) Chrome driver path.
 
             Methods
-                crawl_records(year=) : Return crawled KBO Batter records
+                crawl_records(year=, pos=) : Return crawled KBO records.
 
-                crawl_rename( ) : Returns a list of renamed player
+                crawl_rename( ) : Returns a DataFrame of renamed player.
 
     """
 
@@ -38,18 +38,27 @@ class StatizCrawler:
     def __del__(self):
         self.driver.quit()
 
-    def crawl_records(self, year=1982):
+    def crawl_records(self, year=1982, pos='B'):
         """
-            Crawl KBO Batter records of the given year.
-            If 'year' parameter were not given, it would crawl the 1982's record. (KBO launch year)
+            Crawl KBO records of the given year and position.
+            If parameters were not given, it would crawl the 1982's 'Batter' records.
 
-                :param year: (int) A year to crawl
+                :param year: (int) A year to crawl. Default is 1982. (KBO launch year)
+                :param pos: (str) Position to crawl. Default is 'B'. ('B' for Batter / 'P' for Pitcher)
                 :return: (DataFrame) A DataFrame with crawled records
         """
 
         record_df = pd.DataFrame(columns=['name', 'season', 'birth', 'team', 'position'])
-        url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=0&ys={0}&ye={0}&se=0&te=&tm=&ty=0&qu=auto&po=' \
-              '0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR_ALL_ADJ&de=1&lr=0&tr=&cv=&ml=1&sn=1000&si=&cn=500'.format(year)
+
+        if pos == 'B':
+            url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=0&ys={0}&ye={0}&se=0&te=&tm=&ty=0&qu=auto&po=0' \
+                  '&as=&ae=&hi=&un=&pl=&da=1&o1=WAR_ALL_ADJ&de=1&lr=0&tr=&cv=&ml=1&sn=1000&si=&cn=500'.format(year)
+        elif pos == 'P':
+            url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=1&ys={0}&ye={0}&se=0&te=&tm=&ty=0&qu=auto&po=0' \
+                  '&as=&ae=&hi=&un=&pl=&da=1&o1=WAR&o2=OutCount&de=1&lr=0&tr=&cv=&ml=1&sn=300&si=&cn=500'.format(year)
+        else:
+            return
+
         xpath = '//*[@id="mytable"]/tbody'
 
         self.driver.get(url)
@@ -80,26 +89,50 @@ class StatizCrawler:
             team_regex = re.compile(name + '(.*)?' + position)
             team = ''.join(team_regex.findall(tr[0]))
 
-            for i in list(range(1, 54, 2)):
-                if tr[i] is pd.NA:
-                    tr[i] = 0
-
             tr['name'] = name[:-2]
             tr['season'] = name[-2:]
             tr['birth'] = birth
             tr['team'] = team
             tr['position'] = position
 
+            if pos == 'B':
+                # Statiz does not support WPA records before 2014.
+                if year < 2014:
+                    for i in list(range(1, 54, 2)):
+                        if tr[i] is pd.NA:
+                            tr[i] = 0
+                    tr = tr.dropna().drop([0, 53])
+                else:
+                    for i in list(range(1, 56, 2)):
+                        if tr[i] is pd.NA:
+                            tr[i] = 0
+                    tr = tr.dropna().drop([0, 53, 55])
+
+            else:
+                # Statiz does not support WPA, 2B, 3B records before 2014.
+                if year < 2014:
+                    for i in list(range(1, 54, 2)):
+                        if tr[i] is pd.NA:
+                            tr[i] = 0
+                    tr = tr.dropna().drop([0, 53])
+                else:
+                    for i in list(range(1, 60, 2)):
+                        if tr[i] is pd.NA:
+                            tr[i] = 0
+                    tr = tr.dropna().drop([0, 29, 31, 57, 59])
+
             record_df = record_df.append(tr, ignore_index=True)
 
-        if year < 2014:
-            record_df = record_df.dropna(axis=1).drop([0, 53], axis=1)
+        if pos == 'B':
+            record_df.columns = ['Name', 'Season', 'Birth', 'Team', 'Position', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B',
+                                 '3B', 'HR', 'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF', 'AVG',
+                                 'OBP', 'SLG', 'OPS', 'wOBA', 'WRC+']
         else:
-            record_df = record_df.dropna(axis=1).drop([0, 53, 55], axis=1)  # Statiz record includes WPA after 2014
+            record_df.drop('position', axis=1, inplace=True)
+            record_df.columns = ['Name', 'Season', 'Birth', 'Team', 'WAR', 'G', 'CG', 'SHO', 'GS', 'W', 'L', 'SV',
+                                 'HLD', 'IP', 'R', 'ER', 'TBF', 'H', 'HR', 'BB', 'IBB', 'HBP', 'K', 'WP', 'VK', 'ERA',
+                                 'FIP', 'WHIP', 'ERA+', 'FIP+']
 
-        record_df.columns = ['Name', 'Season', 'Birth', 'Team', 'Position', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B',
-                             '3B', 'HR', 'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF', 'AVG',
-                             'OBP', 'SLG', 'OPS', 'wOBA', 'WRC+']
         return record_df
 
     def crawl_rename(self):
@@ -154,22 +187,22 @@ class StatizCrawler:
 
 if __name__ == '__main__':
     FILE_PATH1 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\kbo_batter.xlsx'
-    FILE_PATH2 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\rename.xlsx'
+    FILE_PATH2 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\kbo_pitcher.xlsx'
+    FILE_PATH3 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\rename.xlsx'
     DRIVER_PATH = r'D:\IT\mywork\chromedriver.exe'
 
-    records = pd.DataFrame()
+    batter = pd.DataFrame()
+    pitcher = pd.DataFrame()
     sc = StatizCrawler(DRIVER_PATH)
 
     for year in range(1982, 2021):
-        records = records.append(sc.crawl_records(year), ignore_index=True)
+        batter = batter.append(sc.crawl_records(year, 'B'), ignore_index=True)
+        pitcher = pitcher.append(sc.crawl_records(year, 'P'), ignore_index=True)
 
     rename = sc.crawl_rename()
 
-    print(records.head())
-    print(records.tail())
-    print(rename)
-
     del sc
 
-    records.to_excel(FILE_PATH1, encoding='utf-8', index=False)
-    rename.to_excel(FILE_PATH2, encoding='utf-8', index=False)
+    batter.to_excel(FILE_PATH1, encoding='utf-8', index=False)
+    pitcher.to_excel(FILE_PATH2, encoding='utf-8', index=False)
+    rename.to_excel(FILE_PATH3, encoding='utf-8', index=False)
