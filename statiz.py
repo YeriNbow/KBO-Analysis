@@ -6,6 +6,11 @@ import utils
 import requests
 
 
+class PosException(Exception):
+    def __str__(self):
+        return "Wrong pos parameter. Choose 'B' to crawl batter or 'P' to crawl pitcher records."
+
+
 class StatizCrawler:
     """
         A class to crawl Statiz website. (http://www.statiz.co.kr)
@@ -43,20 +48,27 @@ class StatizCrawler:
             Crawl KBO records of the given year and position.
             If parameters were not given, it would crawl the 1982's 'Batter' records.
 
-                :param year: (int) A year to crawl. Default is 1982. (KBO launch year)
-                :param pos: (str) Position to crawl. Default is 'B'. ('B' for Batter / 'P' for Pitcher)
-                :return: (DataFrame) A DataFrame with crawled records
+                :param int year: A year to crawl. Default is 1982. (KBO launch year)
+                :param str pos: Position to crawl. Default is 'B'. ('B' for Batter / 'P' for Pitcher)
+                :return: (DataFrame) A DataFrame with crawled records.
+                :raise PosException: If 'pos' is not 'B' or 'P'.
         """
 
         record_df = pd.DataFrame(columns=['name', 'season', 'birth', 'team', 'position'])
 
-        if pos == 'B':
-            url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=0&ys={0}&ye={0}&se=0&te=&tm=&ty=0&qu=auto&po=0' \
-                  '&as=&ae=&hi=&un=&pl=&da=1&o1=WAR_ALL_ADJ&de=1&lr=0&tr=&cv=&ml=1&sn=1000&si=&cn=500'.format(year)
-        elif pos == 'P':
-            url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=1&ys={0}&ye={0}&se=0&te=&tm=&ty=0&qu=auto&po=0' \
-                  '&as=&ae=&hi=&un=&pl=&da=1&o1=WAR&o2=OutCount&de=1&lr=0&tr=&cv=&ml=1&sn=300&si=&cn=500'.format(year)
-        else:
+        try:
+            if pos == 'B':
+                url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=0&ys={0}&ye={0}&se=0&te=&tm=&ty=0' \
+                      '&qu=auto&po=0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR_ALL_ADJ&de=1&lr=0&tr=&cv=&' \
+                      'ml=1&sn=1000&si=&cn=500'.format(year)
+            elif pos == 'P':
+                url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=1&ys={0}&ye={0}&se=0&te=&tm=&ty=0&qu=' \
+                      'auto&po=0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR&o2=OutCount&de=1' \
+                      '&lr=0&tr=&cv=&ml=1&sn=300&si=&cn=500'.format(year)
+            else:
+                raise PosException
+        except PosException as pe:
+            print(pe)
             return
 
         xpath = '//*[@id="mytable"]/tbody'
