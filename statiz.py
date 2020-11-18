@@ -8,7 +8,7 @@ import requests
 
 class PosException(Exception):
     def __str__(self):
-        return "Wrong pos parameter. Choose 'B' to crawl batter or 'P' to crawl pitcher records."
+        return "Wrong 'pos' parameter was given. Choose 'B' to crawl batter records, or 'P' to crawl pitcher records."
 
 
 class StatizCrawler:
@@ -19,10 +19,9 @@ class StatizCrawler:
                 driver_path : (str) Chrome driver path.
 
             Methods
-                crawl_records(year=, pos=) : Return crawled KBO records.
+                crawl_records(year=, pos=) : Returns a DataFrame of crawled KBO records.
 
-                crawl_rename( ) : Returns a DataFrame of renamed player.
-
+                crawl_rename( ) : Returns a DataFrame of renamed players.
     """
 
     def __init__(self, driver_path):
@@ -40,6 +39,9 @@ class StatizCrawler:
 
         self.driver = webdriver.Chrome(driver_path, options=self.OPTIONS)
 
+        # columns to drop
+        self.drop_always = [i for i in range(0, 54, 2)]
+
     def __del__(self):
         self.driver.quit()
 
@@ -54,19 +56,27 @@ class StatizCrawler:
                 :raise PosException: If 'pos' is not 'B' or 'P'.
         """
 
-        record_df = pd.DataFrame(columns=['name', 'season', 'birth', 'team', 'position'])
-
         try:
             if pos == 'B':
                 url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=0&ys={0}&ye={0}&se=0&te=&tm=&ty=0' \
                       '&qu=auto&po=0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR_ALL_ADJ&de=1&lr=0&tr=&cv=&' \
                       'ml=1&sn=1000&si=&cn=500'.format(year)
+
+                record_df = pd.DataFrame(columns=['Name', 'Season', 'Birth', 'Team', 'Position', 'WAR', 'G',
+                                                  'PA', 'AB', 'R', 'H', '2B', '3B', 'HR', 'TB', 'RBI', 'SB',
+                                                  'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF', 'AVG',
+                                                  'OBP', 'SLG', 'OPS', 'wOBA', 'WRC+'])
             elif pos == 'P':
                 url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=1&ys={0}&ye={0}&se=0&te=&tm=&ty=0&qu=' \
                       'auto&po=0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR&o2=OutCount&de=1' \
                       '&lr=0&tr=&cv=&ml=1&sn=300&si=&cn=500'.format(year)
+
+                record_df = pd.DataFrame(columns=['Name', 'Season', 'Birth', 'Team', 'WAR', 'G', 'CG', 'SHO', 'GS',
+                                                  'W', 'L', 'SV', 'HLD', 'IP', 'R', 'ER', 'TBF', 'H', 'HR', 'BB',
+                                                  'IBB', 'HBP', 'K', 'WP', 'VK', 'ERA', 'FIP', 'WHIP', 'ERA+', 'FIP+'])
             else:
                 raise PosException
+
         except PosException as pe:
             print(pe)
             return
@@ -81,7 +91,7 @@ class StatizCrawler:
         trs = page.findAll('tr')
 
         count = 1
-        print('Now Crawling : {}'.format(year))
+        print('Now Crawling : {0} {1} records'.format(year, 'Batter' if pos == 'B' else 'Pitcher'))
 
         for tr in trs:
             utils.progress_bar(count, len(trs))
@@ -105,51 +115,38 @@ class StatizCrawler:
             tr['season'] = name[-2:]
             tr['birth'] = birth
             tr['team'] = team
-            tr['position'] = position
 
             if pos == 'B':
-                # Statiz does not support WPA records before 2014.
+                tr['position'] = position
+
+                # Statiz does not support batter's WPA records before 2014.
                 if year < 2014:
-                    for i in list(range(1, 54, 2)):
-                        if tr[i] is pd.NA:
-                            tr[i] = 0
-                    tr = tr.dropna().drop([0, 53])
+                    tr.drop(self.drop_always + [53], inplace=True)  # 53: duplicated column (WAR)
                 else:
-                    for i in list(range(1, 56, 2)):
-                        if tr[i] is pd.NA:
-                            tr[i] = 0
-                    tr = tr.dropna().drop([0, 53, 55])
+                    tr.drop(self.drop_always + [53, 54, 55], inplace=True)
+
+                tr.index = ['WAR', 'G', 'PA', 'AB', 'R', 'H', '2B', '3B', 'HR', 'TB', 'RBI', 'SB', 'CB', 'BB',
+                            'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF', 'AVG', 'OBP', 'SLG', 'OPS', 'wOBA', 'WRC+',
+                            'Name', 'Season', 'Birth', 'Team', 'Position']
 
             else:
-                # Statiz does not support WPA, 2B, 3B records before 2014.
+                # Statiz does not support pitcher's WPA, 2B, 3B records before 2014.
                 if year < 2014:
-                    for i in list(range(1, 54, 2)):
-                        if tr[i] is pd.NA:
-                            tr[i] = 0
-                    tr = tr.dropna().drop([0, 53])
+                    tr.drop(self.drop_always + [53], inplace=True)  # 53: duplicated column (WAR)
                 else:
-                    for i in list(range(1, 60, 2)):
-                        if tr[i] is pd.NA:
-                            tr[i] = 0
-                    tr = tr.dropna().drop([0, 29, 31, 57, 59])
+                    tr.drop(self.drop_always + [29, 31, 54, 56, 57, 58, 59], inplace=True)
+
+                tr.index = ['WAR', 'G', 'CG', 'SHO', 'GS', 'W', 'L', 'SV', 'HLD', 'IP', 'R', 'ER', 'TBF', 'H',
+                            'HR', 'BB', 'IBB', 'HBP', 'K', 'WP', 'VK', 'ERA', 'FIP', 'WHIP', 'ERA+', 'FIP+',
+                            'Name', 'Season', 'Birth', 'Team']
 
             record_df = record_df.append(tr, ignore_index=True)
-
-        if pos == 'B':
-            record_df.columns = ['Name', 'Season', 'Birth', 'Team', 'Position', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B',
-                                 '3B', 'HR', 'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF', 'AVG',
-                                 'OBP', 'SLG', 'OPS', 'wOBA', 'WRC+']
-        else:
-            record_df.drop('position', axis=1, inplace=True)
-            record_df.columns = ['Name', 'Season', 'Birth', 'Team', 'WAR', 'G', 'CG', 'SHO', 'GS', 'W', 'L', 'SV',
-                                 'HLD', 'IP', 'R', 'ER', 'TBF', 'H', 'HR', 'BB', 'IBB', 'HBP', 'K', 'WP', 'VK', 'ERA',
-                                 'FIP', 'WHIP', 'ERA+', 'FIP+']
 
         return record_df
 
     def crawl_rename(self):
         """
-            Crawl the player list that change their name.
+            Crawl the players who change their name.
 
                 :return: (DataFrame) A DataFrame with renamed player list
         """
