@@ -144,6 +144,35 @@ class StatizCrawler:
 
         return record_df
 
+    def crawl_team(self, year):
+        url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=0&ys={0}&ye={0}&se=0&te=&tm=&ty=0' \
+              '&qu=auto&po=0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR_ALL_ADJ&o2=TPA&de=1&' \
+              'lr=5&tr=&cv=&ml=1&sn=30&si=&cn='.format(year)
+
+        html = requests.get(url)
+        page = BeautifulSoup(html.text, 'lxml')
+        trs = page.findAll('tr')
+        team_df = pd.DataFrame()
+
+        for tr in trs:
+            tr = tr.text.strip().replace('\n', '')
+            tr = pd.Series(tr.split(' '))
+            team_df = team_df.append(tr, ignore_index=True)
+
+        team_df.dropna(inplace=True)
+        team_df.drop([0], axis=0, inplace=True)
+        team_df.reset_index(drop=True, inplace=True)
+
+        if year < 2014:
+            team_df.drop(self.drop_always + [53], axis=1, inplace=True)
+        else:
+            team_df.drop(self.drop_always + [53, 54, 55], axis=1, inplace=True)
+
+        team_df.columns = ['Team', 'WAR', 'PA', 'R', 'H', '2B', '3B', 'HR', 'TB', 'RBI', 'SB', 'CB', 'BB',
+                           'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF', 'AVG', 'OBP', 'SLG', 'OPS', 'wOBA', 'WRC+']
+
+        return team_df
+
     def crawl_rename(self):
         """
             Crawl the players who change their name.
@@ -197,16 +226,19 @@ class StatizCrawler:
 if __name__ == '__main__':
     FILE_PATH1 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\kbo_batter.xlsx'
     FILE_PATH2 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\kbo_pitcher.xlsx'
-    FILE_PATH3 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\rename.xlsx'
+    FILE_PATH3 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\kbo_team.xlsx'
+    FILE_PATH4 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\rename.xlsx'
     DRIVER_PATH = r'D:\IT\mywork\chromedriver.exe'
 
     batter = pd.DataFrame()
     pitcher = pd.DataFrame()
+    team = pd.DataFrame()
     sc = StatizCrawler(DRIVER_PATH)
 
     for year in range(1982, 2021):
         batter = batter.append(sc.crawl_records(year, 'B'), ignore_index=True)
         pitcher = pitcher.append(sc.crawl_records(year, 'P'), ignore_index=True)
+        team = team.append(sc.crawl_team(year), ignore_index=True)
 
     rename = sc.crawl_rename()
 
@@ -214,4 +246,5 @@ if __name__ == '__main__':
 
     batter.to_excel(FILE_PATH1, encoding='utf-8', index=False)
     pitcher.to_excel(FILE_PATH2, encoding='utf-8', index=False)
-    rename.to_excel(FILE_PATH3, encoding='utf-8', index=False)
+    team.to_excel(FILE_PATH3, encoding='utf-8', index=False)
+    rename.to_excel(FILE_PATH4, encoding='utf-8', index=False)
