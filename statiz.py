@@ -19,7 +19,9 @@ class StatizCrawler:
                 driver_path : (str) Chrome driver path.
 
             Methods
-                crawl_records(year=, pos=) : Returns a DataFrame of crawled KBO records.
+                crawl_player(year=, pos=) : Returns a DataFrame of player records.
+
+                crawl_team(year=) : Returns a DataFrame of team records.
 
                 crawl_rename( ) : Returns a DataFrame of renamed players.
     """
@@ -45,9 +47,9 @@ class StatizCrawler:
     def __del__(self):
         self.driver.quit()
 
-    def crawl_records(self, year=1982, pos='B'):
+    def crawl_player(self, year=1982, pos='B'):
         """
-            Crawl KBO records of the given year and position.
+            Crawl KBO player records of the given year and position.
             If parameters were not given, it would crawl the 1982's 'Batter' records.
 
                 :param int year: A year to crawl. Default is 1982. (KBO launch year)
@@ -144,7 +146,15 @@ class StatizCrawler:
 
         return record_df
 
-    def crawl_team(self, year):
+    def crawl_team(self, year=1982):
+        """
+            Crawl KBO team records of the given year.
+
+            :param int year: A year to crawl. Default is 1982. (KBO launch year)
+            :return: (DataFrame) A DataFrame with crawled records.
+        """
+
+        team_df = pd.DataFrame(columns=['Team', 'Season'])
         url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=0&ys={0}&ye={0}&se=0&te=&tm=&ty=0' \
               '&qu=auto&po=0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR_ALL_ADJ&o2=TPA&de=1&' \
               'lr=5&tr=&cv=&ml=1&sn=30&si=&cn='.format(year)
@@ -152,24 +162,39 @@ class StatizCrawler:
         html = requests.get(url)
         page = BeautifulSoup(html.text, 'lxml')
         trs = page.findAll('tr')
-        team_df = pd.DataFrame()
+
+        count = 1
+        print('Now Crawling : {0} team records'.format(year))
 
         for tr in trs:
+            utils.progress_bar(count, len(trs))
+            count += 1
+
             tr = tr.text.strip().replace('\n', '')
             tr = pd.Series(tr.split(' '))
+
+            if len(tr) < 50:
+                continue
+
+            name = ''.join(self.name_regex.findall(tr[0]))
+            tr['Team'] = name[:-2]
+            tr['Season'] = name[-2:]
             team_df = team_df.append(tr, ignore_index=True)
 
         team_df.dropna(inplace=True)
-        team_df.drop([0], axis=0, inplace=True)
         team_df.reset_index(drop=True, inplace=True)
 
         if year < 2014:
+            # Statiz does not support WPA before 2014.
             team_df.drop(self.drop_always + [53], axis=1, inplace=True)
         else:
-            team_df.drop(self.drop_always + [53, 54, 55], axis=1, inplace=True)
+            team_df.drop(self.drop_always + [53, 54, 55], axis=1, inplace=True)  # remove duplicates.
 
-        team_df.columns = ['Team', 'WAR', 'PA', 'R', 'H', '2B', '3B', 'HR', 'TB', 'RBI', 'SB', 'CB', 'BB',
-                           'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF', 'AVG', 'OBP', 'SLG', 'OPS', 'wOBA', 'WRC+']
+        team_df.drop([0], axis=0, inplace=True)
+        team_df['Rank'] = team_df.index
+        team_df.columns = ['Team', 'Season', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B', '3B', 'HR',
+                           'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF', 'AVG',
+                           'OBP', 'SLG', 'OPS', 'wOBA', 'WRC+', 'Rank']
 
         return team_df
 
@@ -236,8 +261,8 @@ if __name__ == '__main__':
     sc = StatizCrawler(DRIVER_PATH)
 
     for year in range(1982, 2021):
-        batter = batter.append(sc.crawl_records(year, 'B'), ignore_index=True)
-        pitcher = pitcher.append(sc.crawl_records(year, 'P'), ignore_index=True)
+        batter = batter.append(sc.crawl_player(year, 'B'), ignore_index=True)
+        pitcher = pitcher.append(sc.crawl_player(year, 'P'), ignore_index=True)
         team = team.append(sc.crawl_team(year), ignore_index=True)
 
     rename = sc.crawl_rename()
