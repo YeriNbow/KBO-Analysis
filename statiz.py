@@ -1,9 +1,11 @@
 import re
 from bs4 import BeautifulSoup
 from selenium import webdriver
+from selenium.webdriver.support.ui import Select
+import time
 import pandas as pd
-import utils
 import requests
+import utils
 
 
 class PosException(Exception):
@@ -22,6 +24,8 @@ class StatizCrawler:
                 crawl_player(year=, pos=) : Returns a DataFrame of player records.
 
                 crawl_team(year=) : Returns a DataFrame of team records.
+
+                crawl_team_rank(year=) : Returns a DataFrame of team rank.
 
                 crawl_rename( ) : Returns a DataFrame of renamed players.
     """
@@ -191,12 +195,54 @@ class StatizCrawler:
             team_df.drop(self.drop_always + [53, 54, 55], axis=1, inplace=True)  # remove duplicates.
 
         team_df.drop([0], axis=0, inplace=True)
-        team_df['Rank'] = team_df.index
+
         team_df.columns = ['Team', 'Season', 'WAR', 'G', 'PA', 'AB', 'R', 'H', '2B', '3B', 'HR',
                            'TB', 'RBI', 'SB', 'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF', 'AVG',
-                           'OBP', 'SLG', 'OPS', 'wOBA', 'WRC+', 'Rank']
+                           'OBP', 'SLG', 'OPS', 'wOBA', 'WRC+']
 
         return team_df
+
+    def crawl_team_rank(self, year=1982):
+        """
+            Crawl KBO team rank of the given year.
+                :param int year: A year to crawl. Default is 1982. (KBO launch year)
+                :return: (DataFrame) A DataFrame with crawled rank.
+        """
+
+        rank_df = pd.DataFrame()
+
+        # Statiz does not support team rank. So use KBO official website instead.
+        url = 'https://www.koreabaseball.com/TeamRank/TeamRank.aspx'
+        xpath = '//*[@id="cphContents_cphContents_cphContents_ddlYear"]'
+
+        self.driver.get(url)
+        select = Select(self.driver.find_element_by_xpath(xpath))
+        select.select_by_value(str(year))
+        time.sleep(3)
+
+        page = BeautifulSoup(self.driver.page_source, 'lxml')
+        trs = page.findAll('tr')
+
+        count = 1
+        print('Now Crawling : {0} team rank'.format(year))
+
+        for tr in trs:
+            utils.progress_bar(count, len(trs))
+            count += 1
+
+            tr = tr.text.strip().replace('\n', ' ')
+            tr = pd.Series(tr.split())
+
+            if len(tr) != 12:
+                continue
+
+            rank_df = rank_df.append(tr, ignore_index=True)
+
+        rank_df.columns = rank_df.iloc[0]
+        rank_df.drop(0, axis=0, inplace=True)
+        rank_df['Season'] = year
+
+        return rank_df
 
     def crawl_rename(self):
         """
@@ -252,18 +298,21 @@ if __name__ == '__main__':
     FILE_PATH1 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\kbo_batter.xlsx'
     FILE_PATH2 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\kbo_pitcher.xlsx'
     FILE_PATH3 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\kbo_team.xlsx'
-    FILE_PATH4 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\rename.xlsx'
+    FILE_PATH4 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\kbo_team_rank.xlsx'
+    FILE_PATH5 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\rename.xlsx'
     DRIVER_PATH = r'D:\IT\mywork\chromedriver.exe'
 
     batter = pd.DataFrame()
     pitcher = pd.DataFrame()
     team = pd.DataFrame()
+    rank = pd.DataFrame()
     sc = StatizCrawler(DRIVER_PATH)
 
     for year in range(1982, 2021):
         batter = batter.append(sc.crawl_player(year, 'B'), ignore_index=True)
         pitcher = pitcher.append(sc.crawl_player(year, 'P'), ignore_index=True)
         team = team.append(sc.crawl_team(year), ignore_index=True)
+        rank = rank.append(sc.crawl_team_rank(year), ignore_index=True)
 
     rename = sc.crawl_rename()
 
@@ -272,4 +321,5 @@ if __name__ == '__main__':
     batter.to_excel(FILE_PATH1, encoding='utf-8', index=False)
     pitcher.to_excel(FILE_PATH2, encoding='utf-8', index=False)
     team.to_excel(FILE_PATH3, encoding='utf-8', index=False)
-    rename.to_excel(FILE_PATH4, encoding='utf-8', index=False)
+    rank.to_excel(FILE_PATH4, encoding='utf-8', index=False)
+    rename.to_excel(FILE_PATH5, encoding='utf-8', index=False)
