@@ -48,6 +48,33 @@ class StatizCrawler:
         # columns to drop
         self.drop_always = [i for i in range(0, 54, 2)]
 
+        # KT와 KIA의 팀 약어가 겹침(K)
+        self.kt_player = self.__check_kt()
+
+    def __check_kt(self):
+        url = 'http://www.statiz.co.kr/stat.php?mid=stat&re=0&ys=1982&ye=2020&se=0&te=kt&tm=&ty=0&qu=auto' \
+              '&po=0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR_ALL_ADJ&o2=TPA&de=1&lr=0&tr=&cv=&ml=1&pa=0&si=&cn=Year' \
+              '%2C%2C0%2CRBI%2C%2C5000&sn=500'
+
+        response = requests.get(url)
+        page = BeautifulSoup(response.text, 'lxml')
+        trs = page.findAll('tr')
+        kt = []
+
+        for tr in trs:
+            tr = tr.text.strip().replace('\n', '')
+            tr = pd.Series(tr.split(' '))
+
+            if len(tr) < 50:
+                continue
+
+            name = ''.join(self.name_regex.findall(tr[0]))
+
+            if name:
+                kt.append(name[:-2])
+
+        return kt
+
     def __del__(self):
         self.driver.quit()
 
@@ -72,6 +99,7 @@ class StatizCrawler:
                                                   'PA', 'AB', 'R', 'H', '2B', '3B', 'HR', 'TB', 'RBI', 'SB',
                                                   'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF', 'AVG',
                                                   'OBP', 'SLG', 'OPS', 'wOBA', 'WRC+'])
+
             elif pos == 'P':
                 url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=1&ys={0}&ye={0}&se=0&te=&tm=&ty=0&qu=' \
                       'auto&po=0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR&o2=OutCount&de=1' \
@@ -120,7 +148,12 @@ class StatizCrawler:
             tr['name'] = name[:-2]
             tr['season'] = name[-2:]
             tr['birth'] = birth
-            tr['team'] = team
+
+            if tr['name'] in self.kt_player and 'K' in team:
+                team = team.replace('K', '케')
+                tr['team'] = team
+            else:
+                tr['team'] = team
 
             if pos == 'B':
                 tr['position'] = position
