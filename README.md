@@ -9,10 +9,8 @@
 
 스탯티즈(http://www.statiz.co.kr/main.php)에서 각종 지표들에 대한 데이터를 크롤링하기 위한 크롤러 입니다.
 
-'
-- BeautifulSoup
-- requests
-- lxml
-- Selenium
-- Pandas
-'
+'- BeautifulSoup'
+'- requests'
+'- lxml'
+'- Selenium'
+'- Pandas'
