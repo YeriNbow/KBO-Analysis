@@ -1,3 +1,5 @@
+# Statiz Crawler
+
 import re
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -9,6 +11,10 @@ import utils
 
 
 class PosException(Exception):
+    """
+        A class to notify position exception.
+    """
+
     def __str__(self):
         return "Wrong 'pos' parameter was given. Choose 'B' to crawl batter records, or 'P' to crawl pitcher records."
 
@@ -18,16 +24,16 @@ class StatizCrawler:
         A class to crawl Statiz website. (http://www.statiz.co.kr)
 
             Parameter
-                driver_path : (str) Chrome driver path.
+                driver_path : (str) Chrome web driver path.
 
             Methods
-                crawl_player(year=, pos=) : Returns a DataFrame of player records.
+                - crawl_player(year, pos) : Returns a DataFrame of player records.
 
-                crawl_team(year=) : Returns a DataFrame of team records.
+                - crawl_team(year) : Returns a DataFrame of team records.
 
-                crawl_team_rank(year=) : Returns a DataFrame of team rank.
+                - crawl_team_rank(year) : Returns a DataFrame of team rank.
 
-                crawl_rename( ) : Returns a DataFrame of renamed players.
+                - crawl_rename( ) : Returns a DataFrame of renamed players.
     """
 
     def __init__(self, driver_path):
@@ -36,7 +42,7 @@ class StatizCrawler:
         self.name_regex = re.compile(r'\d+(.*\d{2})?')
         self.position_regex = re.compile(r'(1B|2B|3B|SS|C|LF|RF|CF|DH|P)$')
 
-        # driver settings
+        # web driver settings
         self.OPTIONS = webdriver.ChromeOptions()
         self.OPTIONS.add_argument('--headless')
         self.OPTIONS.add_argument('--no-sandbox')
@@ -51,7 +57,15 @@ class StatizCrawler:
         # KT와 KIA의 팀 약어가 겹침(K)
         self.kt_player = self.__check_kt()
 
+    def __del__(self):
+        self.driver.quit()
+
     def __check_kt(self):
+        """
+            An inner method to check the KT players. (KIA and KT's team initial is same as 'K')
+                :return: (list) KT player list
+        """
+
         url = 'http://www.statiz.co.kr/stat.php?mid=stat&re=0&ys=1982&ye=2020&se=0&te=kt&tm=&ty=0&qu=auto' \
               '&po=0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR_ALL_ADJ&o2=TPA&de=1&lr=0&tr=&cv=&ml=1&pa=0&si=&cn=Year' \
               '%2C%2C0%2CRBI%2C%2C5000&sn=500'
@@ -75,22 +89,19 @@ class StatizCrawler:
 
         return kt
 
-    def __del__(self):
-        self.driver.quit()
-
     def crawl_player(self, year=1982, pos='B'):
         """
             Crawl KBO player records of the given year and position.
             If parameters were not given, it would crawl the 1982's 'Batter' records.
 
-                :param int year: A year to crawl. Default is 1982. (KBO launch year)
-                :param str pos: Position to crawl. Default is 'B'. ('B' for Batter / 'P' for Pitcher)
+                :param year: (int) A year to crawl. Default is 1982. (KBO launch year)
+                :param pos: (str) Position to crawl. Default is 'B'. ('B' for Batter / 'P' for Pitcher)
                 :return: (DataFrame) A DataFrame with crawled records.
                 :raise PosException: If 'pos' is not 'B' or 'P'.
         """
 
         try:
-            if pos == 'B':
+            if pos == 'B':  # Batter
                 url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=0&ys={0}&ye={0}&se=0&te=&tm=&ty=0' \
                       '&qu=auto&po=0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR_ALL_ADJ&de=1&lr=0&tr=&cv=&' \
                       'ml=1&sn=1000&si=&cn=500'.format(year)
@@ -100,7 +111,7 @@ class StatizCrawler:
                                                   'CB', 'BB', 'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF', 'AVG',
                                                   'OBP', 'SLG', 'OPS', 'wOBA', 'WRC+'])
 
-            elif pos == 'P':
+            elif pos == 'P':  # Pitcher
                 url = 'http://www.statiz.co.kr/stat.php?opt=0&sopt=0&re=1&ys={0}&ye={0}&se=0&te=&tm=&ty=0&qu=' \
                       'auto&po=0&as=&ae=&hi=&un=&pl=&da=1&o1=WAR&o2=OutCount&de=1' \
                       '&lr=0&tr=&cv=&ml=1&sn=300&si=&cn=500'.format(year)
@@ -149,13 +160,14 @@ class StatizCrawler:
             tr['season'] = name[-2:]
             tr['birth'] = birth
 
+            # check kt players
             if tr['name'] in self.kt_player and 'K' in team:
                 team = team.replace('K', '케')
                 tr['team'] = team
             else:
                 tr['team'] = team
 
-            if pos == 'B':
+            if pos == 'B':  # Batter
                 tr['position'] = position
 
                 # Statiz does not support batter's WPA records before 2014.
@@ -168,7 +180,7 @@ class StatizCrawler:
                             'HBP', 'IBB', 'SO', 'DP', 'SH', 'SF', 'AVG', 'OBP', 'SLG', 'OPS', 'wOBA', 'WRC+',
                             'Name', 'Season', 'Birth', 'Team', 'Position']
 
-            else:
+            else:  # Pitcher
                 # Statiz does not support pitcher's WPA, 2B, 3B records before 2014.
                 if year < 2014:
                     tr.drop(self.drop_always + [53], inplace=True)  # 53: duplicated column (WAR)
@@ -187,7 +199,7 @@ class StatizCrawler:
         """
             Crawl KBO team records of the given year.
 
-            :param int year: A year to crawl. Default is 1982. (KBO launch year)
+            :param year: (int) A year to crawl. Default is 1982. (KBO launch year)
             :return: (DataFrame) A DataFrame with crawled records.
         """
 
@@ -238,7 +250,7 @@ class StatizCrawler:
     def crawl_team_rank(self, year=1982):
         """
             Crawl KBO team rank of the given year.
-                :param int year: A year to crawl. Default is 1982. (KBO launch year)
+                :param year: (int) A year to crawl. Default is 1982. (KBO launch year)
                 :return: (DataFrame) A DataFrame with crawled rank.
         """
 
@@ -327,6 +339,7 @@ class StatizCrawler:
         return rename_df
 
 
+# __main__
 if __name__ == '__main__':
     FILE_PATH1 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\kbo_batter.xlsx'
     FILE_PATH2 = r'D:\IT\mywork\Project\KBO-Analysis\dataset\kbo_pitcher.xlsx'
@@ -339,6 +352,8 @@ if __name__ == '__main__':
     pitcher = pd.DataFrame()
     team = pd.DataFrame()
     rank = pd.DataFrame()
+
+    # Statiz Crawler
     sc = StatizCrawler(DRIVER_PATH)
 
     for year in range(1982, 2021):
