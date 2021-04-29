@@ -29,7 +29,7 @@ class StatizCrawler:
             Methods
                 - crawl_player(year, pos) : Returns a DataFrame of player records.
 
-                - crawl_team(year) : Returns a DataFrame of team records.
+                - crawl_team(year, pos) : Returns a DataFrame of team records.
 
                 - crawl_team_rank(year) : Returns a DataFrame of team rank.
 
