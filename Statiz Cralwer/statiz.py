@@ -383,7 +383,7 @@ if __name__ == '__main__':
     # Statiz Crawler
     sc = StatizCrawler(DRIVER_PATH)
 
-    for year in range(1982, 2021):
+    for year in range(2010, 2022):
         batter = batter.append(sc.crawl_player(year, 'B'), ignore_index=True)
         pitcher = pitcher.append(sc.crawl_player(year, 'P'), ignore_index=True)
         team_batting = team_batting.append(sc.crawl_team(year, 'B'), ignore_index=True)
@@ -395,8 +395,8 @@ if __name__ == '__main__':
     del sc
 
     # save to file
-    batter.to_excel(FILE_PATH.format('kbo_batter'), encoding='utf-8', index=False)
-    pitcher.to_excel(FILE_PATH.format('kbo_pitcher'), encoding='utf-8', index=False)
+    batter.to_excel(FILE_PATH.format('kbo_batter_1021'), encoding='utf-8', index=False)
+    pitcher.to_excel(FILE_PATH.format('kbo_pitcher_1021'), encoding='utf-8', index=False)
     team_batting.to_excel(FILE_PATH.format('team_batting'), encoding='utf-8', index=False)
     team_pitching.to_excel(FILE_PATH.format('team_pitching'), encoding='utf-8', index=False)
     team_rank.to_excel(FILE_PATH.format('team_rank'), encoding='utf-8', index=False)
